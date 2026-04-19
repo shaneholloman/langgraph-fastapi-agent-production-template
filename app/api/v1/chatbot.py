@@ -28,6 +28,7 @@ from app.schemas.chat import (
     Message,
     StreamResponse,
 )
+from app.services.session_naming import maybe_name_session
 
 router = APIRouter()
 agent = LangGraphAgent()
@@ -59,6 +60,9 @@ async def chat(
             session_id=session.id,
             message_count=len(chat_request.messages),
         )
+
+        if settings.SESSION_NAMING_ENABLED:
+            maybe_name_session(session.id, session.name, chat_request.messages)
 
         result = await agent.get_response(
             chat_request.messages, session.id, user_id=session.user_id, username=session.username
@@ -98,6 +102,9 @@ async def chat_stream(
             session_id=session.id,
             message_count=len(chat_request.messages),
         )
+
+        if settings.SESSION_NAMING_ENABLED:
+            maybe_name_session(session.id, session.name, chat_request.messages)
 
         async def event_generator():
             """Generate streaming events.
