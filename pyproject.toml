@@ -112,7 +112,7 @@ exclude = ["migrations", "*.ipynb", "venv"]
 # Enable flake8-bugbear (`B`) rules and docstring (`D`) rules
 select = ["E", "F", "B", "ERA", "D"]
 # Never enforce `E501` (line length violations).
-ignore = ["E501", "F401", "D203", "D213", "B904", "B008"]
+ignore = ["E501", "D203", "D213", "B904", "B008"]
 # Avoid trying to fix flake8-bugbear (`B`) violations.
 unfixable = ["B"]
 
@@ -135,12 +135,6 @@ exclude = [
 stubPath = "typings"
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
-
-# ruff has F401 in its ignore list to allow legitimate `# noqa: F401`
-# imports (alembic env.py registers SQLModel models this way). The list
-# is intentional, but the codebase shouldn't accumulate unflagged stale
-# imports on top of it — pyright catches what ruff is configured to skip.
-reportUnusedImport = "error"
 
 # Tightened from defaults — cheap real-bug catchers
 reportDuplicateImport = "error"
