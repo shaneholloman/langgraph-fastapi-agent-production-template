@@ -8,12 +8,20 @@ from typing import (
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 
 from app.core.config import (
     Environment,
     settings,
 )
 from app.core.logging import logger
+
+# langchain-openai 1.0 renamed max_tokens to max_completion_tokens at the OpenAI
+# API boundary; the Pydantic field is still accessible via either name, but
+# pyright only sees the explicit __init__ signature. Forward through
+# model_kwargs so the param flows straight to the OpenAI request payload.
+_TOKEN_LIMIT: Dict[str, Any] = {"max_completion_tokens": settings.MAX_TOKENS}
+_API_KEY = SecretStr(settings.OPENAI_API_KEY)
 
 
 class LLMRegistry:
@@ -28,8 +36,8 @@ class LLMRegistry:
             "name": "gpt-5-mini",
             "llm": ChatOpenAI(
                 model="gpt-5-mini",
-                api_key=settings.OPENAI_API_KEY,
-                max_tokens=settings.MAX_TOKENS,
+                api_key=_API_KEY,
+                model_kwargs=_TOKEN_LIMIT,
                 reasoning={"effort": "low"},
             ),
         },
@@ -37,8 +45,8 @@ class LLMRegistry:
             "name": "gpt-5.4",
             "llm": ChatOpenAI(
                 model="gpt-5",
-                api_key=settings.OPENAI_API_KEY,
-                max_tokens=settings.MAX_TOKENS,
+                api_key=_API_KEY,
+                model_kwargs=_TOKEN_LIMIT,
                 reasoning={"effort": "medium"},
             ),
         },
@@ -46,8 +54,8 @@ class LLMRegistry:
             "name": "gpt-5.4-nano",
             "llm": ChatOpenAI(
                 model="gpt-5.4-nano",
-                api_key=settings.OPENAI_API_KEY,
-                max_tokens=settings.MAX_TOKENS,
+                api_key=_API_KEY,
+                model_kwargs=_TOKEN_LIMIT,
                 reasoning={"effort": "low"},
             ),
         },
@@ -55,8 +63,8 @@ class LLMRegistry:
             "name": "gpt-5",
             "llm": ChatOpenAI(
                 model="gpt-5",
-                api_key=settings.OPENAI_API_KEY,
-                max_tokens=settings.MAX_TOKENS,
+                api_key=_API_KEY,
+                model_kwargs=_TOKEN_LIMIT,
                 top_p=0.95 if settings.ENVIRONMENT == Environment.PRODUCTION else 0.8,
                 presence_penalty=0.1 if settings.ENVIRONMENT == Environment.PRODUCTION else 0.0,
                 frequency_penalty=0.1 if settings.ENVIRONMENT == Environment.PRODUCTION else 0.0,
@@ -89,7 +97,7 @@ class LLMRegistry:
 
         if kwargs:
             logger.debug("creating_llm_with_custom_args", model_name=model_name, custom_args=list(kwargs.keys()))
-            return ChatOpenAI(model=model_name, api_key=settings.OPENAI_API_KEY, **kwargs)
+            return ChatOpenAI(model=model_name, api_key=_API_KEY, **kwargs)
 
         logger.debug("using_default_llm_instance", model_name=model_name)
         return model_entry["llm"]
