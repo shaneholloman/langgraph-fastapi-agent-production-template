@@ -60,6 +60,8 @@ cache = [
 dev = [
     "detect-secrets>=1.5.0",
     "pre-commit>=4.5.1",
+    "pyright>=1.1.390",
+    "ruff>=0.11.4",
 ]
 test = ["httpx>=0.28.1", "pytest>=8.3.5"]
 
@@ -120,3 +122,52 @@ convention = "google"
 # Ignore `E402` (import violations) in all `__init__.py` files
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402"]
+
+[tool.pyright]
+include = ["app", "evals"]
+exclude = [
+    "**/__pycache__",
+    "**/.venv",
+    "alembic/versions",
+    "migrations",
+    "venv",
+]
+stubPath = "typings"
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+useLibraryCodeForTypes = true
+
+# Don't fail on missing third-party stubs (mem0ai, slowapi, partial langfuse,
+# pyinstrument and redis are optional-deps not always installed in CI).
+reportMissingTypeStubs = false
+reportMissingImports = "warning"
+
+# Demoted to warning — these fire heavily on SQLModel/SQLAlchemy filter
+# expressions (`Session.user_id == X` → bool to pyright) and on
+# `session.exec(...)` returning Sequence vs List. They reflect stub gaps
+# rather than real bugs. Promote back to error in Phase 4 once typings/
+# stubs are added or callsites are explicitly cast.
+reportArgumentType = "warning"
+reportReturnType = "warning"
+reportCallIssue = "warning"
+reportOptionalMemberAccess = "warning"
+reportOptionalSubscript = "warning"
+reportAssignmentType = "warning"
+reportAttributeAccessIssue = "warning"
+reportTypedDictNotRequiredAccess = "warning"
+reportRedeclaration = "warning"
+
+# Demoted because the project deliberately ignores ruff F401 — keeping
+# this as error would create a contradictory policy.
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
+
+# Kept as error — these catch real bugs cheaply
+reportDuplicateImport = "error"
+reportInvalidTypeVarUse = "error"
+reportSelfClsParameterName = "error"
+reportGeneralTypeIssues = "error"
+
+# Style nudges
+reportImplicitOverride = "warning"
+reportPrivateImportUsage = "warning"

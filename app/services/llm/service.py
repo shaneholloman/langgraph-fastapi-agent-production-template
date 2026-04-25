@@ -95,7 +95,8 @@ class LLMService:
         self,
         messages: List[BaseMessage],
         model_name: Optional[str] = ...,
-        response_format: Type[T] = ...,
+        *,
+        response_format: Type[T],
         **model_kwargs: Any,
     ) -> T: ...
 

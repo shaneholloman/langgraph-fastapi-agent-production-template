@@ -15,7 +15,7 @@ class MemoryService:
 
     def __init__(self):
         """Initialize the memory service."""
-        self._memory: AsyncMemory = None
+        self._memory: AsyncMemory | None = None
 
     async def _get_memory(self) -> AsyncMemory:
         if self._memory is None:
@@ -81,7 +81,7 @@ class MemoryService:
             logger.error("failed_to_get_relevant_memory", error=str(e), user_id=user_id, query=query)
             return ""
 
-    async def add(self, user_id: str, messages: list[dict], metadata: dict = None) -> None:
+    async def add(self, user_id: str, messages: list[dict], metadata: dict | None = None) -> None:
         """Add messages to long-term memory for a user."""
         try:
             memory = await self._get_memory()
