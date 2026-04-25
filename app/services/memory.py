@@ -53,13 +53,17 @@ class MemoryService:
         await self._get_memory()
         logger.info("memory_service_initialized")
 
-    async def search(self, user_id: str, query: str) -> str:
+    async def search(self, user_id: str | None, query: str) -> str:
         """Search relevant memories for a user.
 
         Checks cache first; on miss, queries mem0 and caches the result.
 
-        Returns formatted memory string, or empty string on failure.
+        Returns formatted memory string, or empty string on failure or when
+        no user_id is supplied (anonymous sessions skip long-term memory
+        rather than pooling under a shared partition).
         """
+        if user_id is None:
+            return ""
         try:
             # Check cache first
             key = cache_key("memory", str(user_id), query)
@@ -81,8 +85,13 @@ class MemoryService:
             logger.error("failed_to_get_relevant_memory", error=str(e), user_id=user_id, query=query)
             return ""
 
-    async def add(self, user_id: str, messages: list[dict], metadata: dict | None = None) -> None:
-        """Add messages to long-term memory for a user."""
+    async def add(self, user_id: str | None, messages: list[dict], metadata: dict | None = None) -> None:
+        """Add messages to long-term memory for a user.
+
+        No-op when ``user_id`` is ``None`` (see ``search`` for rationale).
+        """
+        if user_id is None:
+            return
         try:
             memory = await self._get_memory()
             await memory.add(messages, user_id=str(user_id), metadata=metadata)

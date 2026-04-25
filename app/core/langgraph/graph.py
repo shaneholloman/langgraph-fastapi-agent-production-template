@@ -4,9 +4,11 @@ import asyncio
 from typing import (
     AsyncGenerator,
     Optional,
+    cast,
 )
 from urllib.parse import quote_plus
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
@@ -26,6 +28,14 @@ from langgraph.graph.state import (
     CompiledStateGraph,
 )
 from langgraph.types import StateSnapshot
+from psycopg import (
+    AsyncConnection,
+    sql,
+)
+from psycopg.rows import (
+    DictRow,
+    dict_row,
+)
 from psycopg_pool import AsyncConnectionPool
 
 from app.core.config import (
@@ -64,7 +74,9 @@ class LangGraphAgent:
         self.llm_service = llm_service
         self.llm_service.bind_tools(tools)
         self.tools_by_name = {tool.name: tool for tool in tools}
-        self._connection_pool: Optional[AsyncConnectionPool] = None
+        # AsyncPostgresSaver requires AsyncConnectionPool[AsyncConnection[DictRow]] —
+        # see langgraph.checkpoint.postgres._ainternal.Conn.
+        self._connection_pool: Optional[AsyncConnectionPool[AsyncConnection[DictRow]]] = None
         self._graph: Optional[CompiledStateGraph] = None
         logger.info(
             "langgraph_agent_initialized",
@@ -72,7 +84,7 @@ class LangGraphAgent:
             environment=settings.ENVIRONMENT.value,
         )
 
-    async def _get_connection_pool(self) -> Optional[AsyncConnectionPool]:
+    async def _get_connection_pool(self) -> Optional[AsyncConnectionPool[AsyncConnection[DictRow]]]:
         """Get a PostgreSQL connection pool using environment-specific settings.
 
         Returns:
@@ -98,6 +110,7 @@ class LangGraphAgent:
                         "autocommit": True,
                         "connect_timeout": 5,
                         "prepare_threshold": None,
+                        "row_factory": dict_row,
                     },
                 )
                 await self._connection_pool.open()
@@ -130,6 +143,7 @@ class LangGraphAgent:
         )
 
         username = config.get("metadata", {}).get("username")
+        thread_id = config.get("configurable", {}).get("thread_id")
         SYSTEM_PROMPT = load_system_prompt(username=username, long_term_memory=state.long_term_memory)
 
         # Prepare messages with system prompt
@@ -145,13 +159,15 @@ class LangGraphAgent:
 
             logger.info(
                 "llm_response_generated",
-                session_id=config["configurable"]["thread_id"],
+                session_id=thread_id,
                 model=model_name,
                 environment=settings.ENVIRONMENT.value,
             )
 
-            # Determine next node based on whether there are tool calls
-            if response_message.tool_calls:
+            # Determine next node based on whether there are tool calls.
+            # tool_calls only exists on AIMessage; the LLM will normally return
+            # one but the BaseMessage type is wider, so narrow before access.
+            if isinstance(response_message, AIMessage) and response_message.tool_calls:
                 goto = "tool_call"
             else:
                 goto = END
@@ -160,7 +176,7 @@ class LangGraphAgent:
         except Exception as e:
             logger.error(
                 "llm_call_failed_all_models",
-                session_id=config["configurable"]["thread_id"],
+                session_id=thread_id,
                 error=str(e),
                 environment=settings.ENVIRONMENT.value,
             )
@@ -203,8 +219,12 @@ class LangGraphAgent:
         if self._graph is None:
             try:
                 graph_builder = StateGraph(GraphState)
-                graph_builder.add_node("chat", self._chat, ends=["tool_call", END])
-                graph_builder.add_node("tool_call", self._tool_call, ends=["chat"])
+                # `destinations` is the public name in langgraph 1.0+ for what
+                # was passed as `ends` previously — the kwarg `ends=` is not
+                # in the typed signature and is silently dropped (graph still
+                # routes via Command(goto=...), but rendering loses the edges).
+                graph_builder.add_node("chat", self._chat, destinations=("tool_call", END))
+                graph_builder.add_node("tool_call", self._tool_call, destinations=("chat",))
                 graph_builder.set_entry_point("chat")
                 graph_builder.set_finish_point("chat")
 
@@ -259,7 +279,7 @@ class LangGraphAgent:
         session_id: str,
         user_id: Optional[str] = None,
         username: Optional[str] = None,
-    ) -> list[dict]:
+    ) -> list[Message]:
         """Get a response from the LLM.
 
         Args:
@@ -269,11 +289,11 @@ class LangGraphAgent:
             username (Optional[str]): The display name of the user.
 
         Returns:
-            list[dict]: The response from the LLM.
+            list[Message]: The response from the LLM.
         """
         graph = await self._get_graph()
-        callbacks = [langfuse_callback_handler] if settings.LANGFUSE_TRACING_ENABLED else []
-        config = {
+        callbacks: list[BaseCallbackHandler] = [langfuse_callback_handler] if settings.LANGFUSE_TRACING_ENABLED else []
+        config: RunnableConfig = {
             "configurable": {"thread_id": session_id},
             "callbacks": callbacks,
             "metadata": {
@@ -312,9 +332,10 @@ class LangGraphAgent:
                 logger.info("graph_interrupted", session_id=session_id, interrupt_value=str(interrupt_value))
                 return [Message(role="assistant", content=str(interrupt_value))]
 
-            asyncio.create_task(
-                memory_service.add(user_id, convert_to_openai_messages(response["messages"]), config["metadata"])
-            )
+            # convert_to_openai_messages returns dict | list[dict]; we always
+            # pass a Sequence so the result is list[dict].
+            openai_msgs = cast(list[dict], convert_to_openai_messages(response["messages"]))
+            asyncio.create_task(memory_service.add(user_id, openai_msgs, config.get("metadata")))
             return self.__process_messages(response["messages"])
         except GraphInterrupt:
             state = await graph.aget_state(config)
@@ -343,8 +364,8 @@ class LangGraphAgent:
         Yields:
             str: Tokens of the LLM response.
         """
-        callbacks = [langfuse_callback_handler] if settings.LANGFUSE_TRACING_ENABLED else []
-        config = {
+        callbacks: list[BaseCallbackHandler] = [langfuse_callback_handler] if settings.LANGFUSE_TRACING_ENABLED else []
+        config: RunnableConfig = {
             "configurable": {"thread_id": session_id},
             "callbacks": callbacks,
             "metadata": {
@@ -390,11 +411,8 @@ class LangGraphAgent:
                 logger.info("graph_interrupted_stream", session_id=session_id, interrupt_value=str(interrupt_value))
                 yield str(interrupt_value)
             elif state.values and "messages" in state.values:
-                asyncio.create_task(
-                    memory_service.add(
-                        user_id, convert_to_openai_messages(state.values["messages"]), config["metadata"]
-                    )
-                )
+                openai_msgs = cast(list[dict], convert_to_openai_messages(state.values["messages"]))
+                asyncio.create_task(memory_service.add(user_id, openai_msgs, config.get("metadata")))
         except GraphInterrupt:
             state = await graph.aget_state(config)
             interrupt_value = state.tasks[0].interrupts[0].value if state.tasks else "Waiting for input."
@@ -415,7 +433,8 @@ class LangGraphAgent:
         """
         graph = await self._get_graph()
 
-        state: StateSnapshot = await graph.aget_state(config={"configurable": {"thread_id": session_id}})
+        config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+        state: StateSnapshot = await graph.aget_state(config=config)
         return self.__process_messages(state.values["messages"]) if state.values else []
 
     def __process_messages(self, messages: list[BaseMessage]) -> list[Message]:
@@ -439,12 +458,20 @@ class LangGraphAgent:
         try:
             # Make sure the pool is initialized in the current event loop
             conn_pool = await self._get_connection_pool()
+            if conn_pool is None:
+                raise RuntimeError("connection pool unavailable; cannot clear chat history")
 
-            # Batch all DELETEs in a single pipeline round-trip
+            # Batch all DELETEs in a single pipeline round-trip.
+            # Use psycopg.sql.Identifier to safely interpolate the table name —
+            # CHECKPOINT_TABLES is config-driven, but the typed execute signature
+            # rejects raw f-strings (potential injection vector).
             async with conn_pool.connection() as conn:
                 async with conn.pipeline():
                     for table in settings.CHECKPOINT_TABLES:
-                        await conn.execute(f"DELETE FROM {table} WHERE thread_id = %s", (session_id,))
+                        await conn.execute(
+                            sql.SQL("DELETE FROM {} WHERE thread_id = %s").format(sql.Identifier(table)),
+                            (session_id,),
+                        )
                 logger.info(
                     "checkpoint_tables_cleared_for_session",
                     tables=settings.CHECKPOINT_TABLES,

@@ -13,6 +13,7 @@ from typing import (
     overload,
 )
 
+from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages import BaseMessage
 from openai import (
     APIError,
@@ -88,7 +89,7 @@ class LLMService:
     @overload
     async def call(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         model_name: Optional[str] = ...,
         response_format: None = ...,
         **model_kwargs: Any,
@@ -97,7 +98,7 @@ class LLMService:
     @overload
     async def call(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         model_name: Optional[str] = ...,
         *,
         response_format: Type[T],
@@ -106,7 +107,7 @@ class LLMService:
 
     async def call(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         model_name: Optional[str] = None,
         response_format: Optional[Type[BaseModel]] = None,
         **model_kwargs: Any,
@@ -178,7 +179,7 @@ class LLMService:
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
-    async def _invoke_with_retry(self, llm: Any, messages: List[BaseMessage]) -> Any:
+    async def _invoke_with_retry(self, llm: Any, messages: LanguageModelInput) -> Any:
         """Invoke an LLM runnable with automatic per-model retry logic.
 
         Args:
@@ -193,7 +194,7 @@ class LLMService:
         """
         try:
             response = await llm.ainvoke(messages)
-            logger.debug("llm_call_successful", message_count=len(messages))
+            logger.debug("llm_call_successful")
             return response
         except (RateLimitError, APITimeoutError, APIError) as e:
             logger.warning(
@@ -241,7 +242,7 @@ class LLMService:
 
     async def _call_with_fallback(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         model_name: Optional[str],
         response_format: Optional[Type[BaseModel]],
         model_kwargs: dict,
@@ -286,7 +287,7 @@ class LLMService:
 
     async def _fallback_loop(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         start: int,
         get_target: Callable[[int], Any],
         advance: Callable[[int], Optional[int]],
