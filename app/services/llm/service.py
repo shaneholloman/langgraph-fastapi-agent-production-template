@@ -53,7 +53,7 @@ class LLMService:
 
     def __init__(self):
         """Initialize the LLM service with the configured default model."""
-        self._llm: Any = None
+        self._llm: Any = None  # BaseChatModel pre-bind_tools, Runnable after
         self._current_model_index: int = 0
         self._bound_tools: List = []
 
