@@ -27,8 +27,8 @@ from app.core.metrics import (
 )
 
 try:
-    from pyinstrument import Profiler
-    from pyinstrument.renderers import JSONRenderer
+    from pyinstrument import Profiler  # pyright: ignore[reportMissingImports]
+    from pyinstrument.renderers import JSONRenderer  # pyright: ignore[reportMissingImports]
 
     PYINSTRUMENT_AVAILABLE = True
 except ImportError:

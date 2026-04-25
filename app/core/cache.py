@@ -13,7 +13,7 @@ from app.core.logging import logger
 
 # Try to import redis — it's an optional dependency
 try:
-    from redis.asyncio import Redis
+    from redis.asyncio import Redis  # pyright: ignore[reportMissingImports]
 
     REDIS_AVAILABLE = True
 except ImportError:

@@ -137,10 +137,12 @@ pythonVersion = "3.13"
 typeCheckingMode = "basic"
 useLibraryCodeForTypes = true
 
-# Don't fail on missing third-party stubs (mem0ai, slowapi, partial langfuse,
-# pyinstrument and redis are optional-deps not always installed in CI).
+# Don't fail on missing third-party stubs (mem0ai, slowapi, partial langfuse).
 reportMissingTypeStubs = false
-reportMissingImports = "warning"
+# Optional imports (redis.asyncio, pyinstrument) are explicitly silenced at
+# the call sites with `# pyright: ignore[reportMissingImports]`, so an
+# unflagged occurrence is now a real error.
+reportMissingImports = "error"
 
 # Demoted to warning — these fire heavily on SQLModel/SQLAlchemy filter
 # expressions (`Session.user_id == X` → bool to pyright) and on

@@ -20,14 +20,12 @@ from langgraph.graph import (
     END,
     StateGraph,
 )
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph.state import (
     Command,
     CompiledStateGraph,
 )
-from langgraph.types import (
-    RunnableConfig,
-    StateSnapshot,
-)
+from langgraph.types import StateSnapshot
 from psycopg_pool import AsyncConnectionPool
 
 from app.core.config import (
