@@ -16,7 +16,6 @@ from colorama import (
     Fore,
     Style,
 )
-from tqdm import tqdm
 
 # Fix import path for app module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

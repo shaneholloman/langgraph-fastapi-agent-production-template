@@ -9,7 +9,6 @@ from typing import (
     List,
     Optional,
     Tuple,
-    Union,
 )
 
 from langfuse.api.resources.commons.types.trace_with_details import TraceWithDetails

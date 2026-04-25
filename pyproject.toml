@@ -159,9 +159,11 @@ reportAttributeAccessIssue = "warning"
 reportTypedDictNotRequiredAccess = "warning"
 reportRedeclaration = "warning"
 
-# Demoted because the project deliberately ignores ruff F401 — keeping
-# this as error would create a contradictory policy.
-reportUnusedImport = "warning"
+# ruff has F401 in its ignore list to allow legitimate `# noqa: F401`
+# imports (alembic env.py registers SQLModel models this way). The list
+# is intentional, but the codebase shouldn't accumulate unflagged stale
+# imports on top of it — pyright catches what ruff is configured to skip.
+reportUnusedImport = "error"
 reportUnusedVariable = "warning"
 
 # Kept as error — these catch real bugs cheaply

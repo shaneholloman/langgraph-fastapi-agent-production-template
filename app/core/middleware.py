@@ -21,7 +21,6 @@ from app.core.logging import (
     logger,
 )
 from app.core.metrics import (
-    db_connections,
     http_request_duration_seconds,
     http_requests_total,
 )

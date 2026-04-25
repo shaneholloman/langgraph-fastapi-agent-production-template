@@ -5,7 +5,6 @@ streaming chat, message history management, and chat history clearing.
 """
 
 import json
-from typing import List
 
 from fastapi import (
     APIRouter,
@@ -25,7 +24,6 @@ from app.models.session import Session
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
-    Message,
     StreamResponse,
 )
 from app.services.session_naming import maybe_name_session
