@@ -257,6 +257,19 @@ class LLMService:
             ``get_target`` returns ``self._llm`` (tool-bound).
             ``advance`` calls ``_switch_to_next_model`` so bindings persist.
         """
+
+        # Define both candidate strategies as locals, then pick a pair so
+        # pyright sees stable single declarations of get_target / advance.
+        def _override_target(idx: int) -> Any:
+            base = LLMRegistry.get(LLMRegistry.LLMS[idx]["name"], **model_kwargs)
+            return base.with_structured_output(response_format) if response_format else base
+
+        def _default_target(_: int) -> Any:
+            return self._llm
+
+        def _default_advance(_: int) -> Optional[int]:
+            return self._current_model_index if self._switch_to_next_model() else None
+
         if model_name or response_format or model_kwargs:
             all_names = LLMRegistry.get_all_names()
             if model_name and model_name not in all_names:
@@ -267,21 +280,16 @@ class LLMService:
 
             start = all_names.index(model_name) if model_name else self._current_model_index
             total = len(LLMRegistry.LLMS)
+            get_target: Callable[[int], Any] = _override_target
 
-            def get_target(idx: int) -> Any:
-                base = LLMRegistry.get(LLMRegistry.LLMS[idx]["name"], **model_kwargs)
-                return base.with_structured_output(response_format) if response_format else base
-
-            def advance(idx: int) -> Optional[int]:
+            def _override_advance(idx: int) -> Optional[int]:
                 return (idx + 1) % total
+
+            advance: Callable[[int], Optional[int]] = _override_advance
         else:
             start = self._current_model_index
-
-            def get_target(_: int) -> Any:
-                return self._llm
-
-            def advance(_: int) -> Optional[int]:
-                return self._current_model_index if self._switch_to_next_model() else None
+            get_target = _default_target
+            advance = _default_advance
 
         return await self._fallback_loop(messages, start, get_target, advance)
 

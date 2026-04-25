@@ -3,7 +3,11 @@
 import json
 import time
 import tracemalloc
-from typing import Callable
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    override,
+)
 
 from asgi_correlation_id import correlation_id
 from fastapi import Request
@@ -25,18 +29,30 @@ from app.core.metrics import (
     http_requests_total,
 )
 
-try:
+# Optional profiling dependency — same TYPE_CHECKING pattern as
+# core/cache.py for redis: pyright sees the type symbols as always
+# bound, runtime probes for availability.
+if TYPE_CHECKING:
     from pyinstrument import Profiler  # pyright: ignore[reportMissingImports]
     from pyinstrument.renderers import JSONRenderer  # pyright: ignore[reportMissingImports]
 
     PYINSTRUMENT_AVAILABLE = True
-except ImportError:
-    PYINSTRUMENT_AVAILABLE = False
+else:
+    try:
+        from pyinstrument import Profiler
+        from pyinstrument.renderers import JSONRenderer
+
+        PYINSTRUMENT_AVAILABLE = True
+    except ImportError:
+        Profiler = None
+        JSONRenderer = None
+        PYINSTRUMENT_AVAILABLE = False
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):
     """Middleware for tracking HTTP request metrics."""
 
+    @override
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Track metrics for each request.
 
@@ -69,6 +85,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 class LoggingContextMiddleware(BaseHTTPMiddleware):
     """Middleware for adding user_id and session_id to logging context."""
 
+    @override
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Extract user_id and session_id from authenticated requests and add to logging context.
 
@@ -128,6 +145,7 @@ class ProfilingMiddleware(BaseHTTPMiddleware):
     can be correlated with logs. /tmp is cleaned up automatically by the OS.
     """
 
+    @override
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Profile every request; save enriched JSON if duration exceeds threshold."""
         if not PYINSTRUMENT_AVAILABLE:

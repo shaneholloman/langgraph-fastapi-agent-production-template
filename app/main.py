@@ -2,10 +2,6 @@
 
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import (
-    Any,
-    Dict,
-)
 
 from dotenv import load_dotenv
 from fastapi import (
@@ -107,9 +103,12 @@ if settings.DEBUG:
 # Add correlation ID middleware — must be outermost so request_id is set before all others
 app.add_middleware(CorrelationIdMiddleware)
 
-# Set up rate limiter exception handler
+# Set up rate limiter exception handler. slowapi's handler returns
+# starlette.Response, but starlette's add_exception_handler types its
+# `handler` param too narrowly to recognise that — the runtime contract
+# is satisfied. https://github.com/laurentS/slowapi/issues/177
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # pyright: ignore[reportArgumentType]
 
 
 # Add validation exception handler
@@ -174,11 +173,12 @@ async def root(request: Request):
 
 @app.get("/health")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["health"][0])
-async def health_check(request: Request) -> Dict[str, Any]:
+async def health_check(request: Request) -> JSONResponse:
     """Health check endpoint with environment-specific information.
 
     Returns:
-        Dict[str, Any]: Health status information
+        JSONResponse: Health status payload, with HTTP 503 when the
+        database is unreachable so load balancers can drop the instance.
     """
     logger.info("health_check_called")
 

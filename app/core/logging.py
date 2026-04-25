@@ -15,6 +15,8 @@ from typing import (
     Any,
     Dict,
     List,
+    Optional,
+    override,
 )
 
 import structlog
@@ -28,8 +30,11 @@ from app.core.config import (
 # Ensure log directory exists
 settings.LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-# Context variables for storing request-specific data
-_request_context: ContextVar[Dict[str, Any]] = ContextVar("request_context", default=None)
+# Context variables for storing request-specific data. The default is
+# None (rather than {}) to avoid B039 — sharing a mutable default across
+# contexts would leak request data. get_context() coerces None -> {} so
+# downstream callers always see a dict.
+_request_context: ContextVar[Optional[Dict[str, Any]]] = ContextVar("request_context", default=None)
 
 
 def bind_context(**kwargs: Any) -> None:
@@ -114,6 +119,7 @@ class JsonlFileHandler(logging.Handler):
         super().__init__()
         self.file_path = file_path
 
+    @override
     def emit(self, record: logging.LogRecord) -> None:
         """Emit a record to the JSONL file."""
         try:
@@ -127,14 +133,18 @@ class JsonlFileHandler(logging.Handler):
                 "line": record.lineno,
                 "environment": settings.ENVIRONMENT.value,
             }
-            if hasattr(record, "extra"):
-                log_entry.update(record.extra)
+            # `extra` is set dynamically on LogRecord by stdlib logging when
+            # callers pass extra=... — not a typed attribute, hence getattr.
+            extra = getattr(record, "extra", None)
+            if isinstance(extra, dict):
+                log_entry.update(extra)
 
             with open(self.file_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(log_entry) + "\n")
         except Exception:
             self.handleError(record)
 
+    @override
     def close(self) -> None:
         """Close the handler."""
         super().close()

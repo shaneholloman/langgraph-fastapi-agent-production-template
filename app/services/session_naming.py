@@ -46,10 +46,7 @@ def _claim_session(session_id: str, placeholder: str) -> bool:
         # https://github.com/fastapi/sqlmodel/issues/909
         stmt = (
             update(ChatSession)
-            .where(  # pyright: ignore[reportArgumentType]
-                ChatSession.id == session_id,
-                ChatSession.name == "",
-            )
+            .where(ChatSession.id == session_id, ChatSession.name == "")  # pyright: ignore[reportArgumentType]
             .values(name=placeholder)
         )
         result = db.exec(stmt)  # pyright: ignore[reportCallIssue, reportArgumentType]
