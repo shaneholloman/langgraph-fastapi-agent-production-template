@@ -134,7 +134,7 @@ exclude = [
 ]
 stubPath = "typings"
 pythonVersion = "3.13"
-typeCheckingMode = "basic"
+typeCheckingMode = "standard"
 useLibraryCodeForTypes = true
 
 # Don't fail on missing third-party stubs (mem0ai, slowapi, partial langfuse).
@@ -173,3 +173,7 @@ reportGeneralTypeIssues = "error"
 # Style nudges
 reportImplicitOverride = "warning"
 reportPrivateImportUsage = "warning"
+
+# Optional imports (redis, pyinstrument) use the try/except + *_AVAILABLE
+# flag pattern which pyright cannot narrow through. Keep as warning.
+reportPossiblyUnboundVariable = "warning"

@@ -49,12 +49,12 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             Response: The response from the application
         """
         start_time = time.time()
+        status_code = 500
 
         try:
             response = await call_next(request)
             status_code = response.status_code
         except Exception:
-            status_code = 500
             raise
         finally:
             duration = time.time() - start_time
