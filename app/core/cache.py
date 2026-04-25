@@ -16,8 +16,6 @@ from typing import (
 from app.core.config import settings
 from app.core.logging import logger
 
-# Optional dependency — keep the type symbol bound for pyright via
-# TYPE_CHECKING, and probe availability at runtime.
 if TYPE_CHECKING:
     from redis.asyncio import Redis  # pyright: ignore[reportMissingImports]
 
@@ -113,12 +111,6 @@ class ValkeyCacheService:
             max_connections=settings.VALKEY_MAX_CONNECTIONS,
             decode_responses=True,
         )
-        # Verify connection before publishing the client — if ping() raises,
-        # self._client stays None and REDIS_AVAILABLE callers fall back.
-        # redis-py types ping() as Union[Awaitable[bool], bool] to share the
-        # method between sync and async clients (see redis-py issues #3107,
-        # #2399, #3497). The async client always returns Awaitable; cast to
-        # narrow the union for the type checker.
         await cast(Awaitable[bool], client.ping())
         self._client = client
         logger.info(

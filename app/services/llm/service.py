@@ -53,10 +53,6 @@ class LLMService:
 
     def __init__(self):
         """Initialize the LLM service with the configured default model."""
-        # Polymorphic: BaseChatModel before bind_tools, Runnable[..., BaseMessage]
-        # after. Typing the union is technically possible but the .bind_tools
-        # call sites only run on the BaseChatModel form and pyright cannot
-        # narrow across re-assignments — keep Any to avoid spurious warnings.
         self._llm: Any = None
         self._current_model_index: int = 0
         self._bound_tools: List = []
@@ -258,8 +254,6 @@ class LLMService:
             ``advance`` calls ``_switch_to_next_model`` so bindings persist.
         """
 
-        # Define both candidate strategies as locals, then pick a pair so
-        # pyright sees stable single declarations of get_target / advance.
         def _override_target(idx: int) -> Any:
             base = LLMRegistry.get(LLMRegistry.LLMS[idx]["name"], **model_kwargs)
             return base.with_structured_output(response_format) if response_format else base

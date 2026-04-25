@@ -16,10 +16,6 @@ from app.core.config import (
 )
 from app.core.logging import logger
 
-# langchain-openai 1.0 renamed max_tokens to max_completion_tokens at the OpenAI
-# API boundary; the Pydantic field is still accessible via either name, but
-# pyright only sees the explicit __init__ signature. Forward through
-# model_kwargs so the param flows straight to the OpenAI request payload.
 _TOKEN_LIMIT: Dict[str, Any] = {"max_completion_tokens": settings.MAX_TOKENS}
 _API_KEY = SecretStr(settings.OPENAI_API_KEY)
 

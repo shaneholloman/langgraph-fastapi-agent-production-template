@@ -29,9 +29,6 @@ from app.core.metrics import (
     http_requests_total,
 )
 
-# Optional profiling dependency — same TYPE_CHECKING pattern as
-# core/cache.py for redis: pyright sees the type symbols as always
-# bound, runtime probes for availability.
 if TYPE_CHECKING:
     from pyinstrument import Profiler  # pyright: ignore[reportMissingImports]
     from pyinstrument.renderers import JSONRenderer  # pyright: ignore[reportMissingImports]

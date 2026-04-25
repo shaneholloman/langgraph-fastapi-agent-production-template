@@ -103,10 +103,7 @@ if settings.DEBUG:
 # Add correlation ID middleware — must be outermost so request_id is set before all others
 app.add_middleware(CorrelationIdMiddleware)
 
-# Set up rate limiter exception handler. slowapi's handler returns
-# starlette.Response, but starlette's add_exception_handler types its
-# `handler` param too narrowly to recognise that — the runtime contract
-# is satisfied. https://github.com/laurentS/slowapi/issues/177
+# Set up rate limiter exception handler
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # pyright: ignore[reportArgumentType]
 

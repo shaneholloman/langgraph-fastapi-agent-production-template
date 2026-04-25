@@ -74,8 +74,6 @@ class LangGraphAgent:
         self.llm_service = llm_service
         self.llm_service.bind_tools(tools)
         self.tools_by_name = {tool.name: tool for tool in tools}
-        # AsyncPostgresSaver requires AsyncConnectionPool[AsyncConnection[DictRow]] —
-        # see langgraph.checkpoint.postgres._ainternal.Conn.
         self._connection_pool: Optional[AsyncConnectionPool[AsyncConnection[DictRow]]] = None
         self._graph: Optional[CompiledStateGraph] = None
         logger.info(
@@ -164,9 +162,7 @@ class LangGraphAgent:
                 environment=settings.ENVIRONMENT.value,
             )
 
-            # Determine next node based on whether there are tool calls.
-            # tool_calls only exists on AIMessage; the LLM will normally return
-            # one but the BaseMessage type is wider, so narrow before access.
+            # Determine next node based on whether there are tool calls
             if isinstance(response_message, AIMessage) and response_message.tool_calls:
                 goto = "tool_call"
             else:
@@ -219,10 +215,6 @@ class LangGraphAgent:
         if self._graph is None:
             try:
                 graph_builder = StateGraph(GraphState)
-                # `destinations` is the public name in langgraph 1.0+ for what
-                # was passed as `ends` previously — the kwarg `ends=` is not
-                # in the typed signature and is silently dropped (graph still
-                # routes via Command(goto=...), but rendering loses the edges).
                 graph_builder.add_node("chat", self._chat, destinations=("tool_call", END))
                 graph_builder.add_node("tool_call", self._tool_call, destinations=("chat",))
                 graph_builder.set_entry_point("chat")
@@ -461,10 +453,7 @@ class LangGraphAgent:
             if conn_pool is None:
                 raise RuntimeError("connection pool unavailable; cannot clear chat history")
 
-            # Batch all DELETEs in a single pipeline round-trip.
-            # Use psycopg.sql.Identifier to safely interpolate the table name —
-            # CHECKPOINT_TABLES is config-driven, but the typed execute signature
-            # rejects raw f-strings (potential injection vector).
+            # Batch all DELETEs in a single pipeline round-trip
             async with conn_pool.connection() as conn:
                 async with conn.pipeline():
                     for table in settings.CHECKPOINT_TABLES:
