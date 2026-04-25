@@ -60,6 +60,8 @@ from app.utils import (
     process_llm_response,
 )
 
+PostgresConnPool = AsyncConnectionPool[AsyncConnection[DictRow]]
+
 
 class LangGraphAgent:
     """Manages the LangGraph Agent/workflow and interactions with the LLM.
@@ -74,7 +76,7 @@ class LangGraphAgent:
         self.llm_service = llm_service
         self.llm_service.bind_tools(tools)
         self.tools_by_name = {tool.name: tool for tool in tools}
-        self._connection_pool: Optional[AsyncConnectionPool[AsyncConnection[DictRow]]] = None
+        self._connection_pool: Optional[PostgresConnPool] = None
         self._graph: Optional[CompiledStateGraph] = None
         logger.info(
             "langgraph_agent_initialized",
@@ -82,7 +84,7 @@ class LangGraphAgent:
             environment=settings.ENVIRONMENT.value,
         )
 
-    async def _get_connection_pool(self) -> Optional[AsyncConnectionPool[AsyncConnection[DictRow]]]:
+    async def _get_connection_pool(self) -> Optional[PostgresConnPool]:
         """Get a PostgreSQL connection pool using environment-specific settings.
 
         Returns:
@@ -324,8 +326,6 @@ class LangGraphAgent:
                 logger.info("graph_interrupted", session_id=session_id, interrupt_value=str(interrupt_value))
                 return [Message(role="assistant", content=str(interrupt_value))]
 
-            # convert_to_openai_messages returns dict | list[dict]; we always
-            # pass a Sequence so the result is list[dict].
             openai_msgs = cast(list[dict], convert_to_openai_messages(response["messages"]))
             asyncio.create_task(memory_service.add(user_id, openai_msgs, config.get("metadata")))
             return self.__process_messages(response["messages"])
