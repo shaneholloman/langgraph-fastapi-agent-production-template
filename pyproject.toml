@@ -136,19 +136,6 @@ stubPath = "typings"
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
 
-# Demoted to warning — these fire heavily on SQLModel/SQLAlchemy filter
-# expressions (`Session.user_id == X` → bool to pyright) and on
-# `session.exec(...)` returning Sequence vs List. They reflect stub gaps
-# rather than real bugs.
-reportArgumentType = "warning"
-reportReturnType = "warning"
-reportCallIssue = "warning"
-reportOptionalMemberAccess = "warning"
-reportAssignmentType = "warning"
-reportAttributeAccessIssue = "warning"
-reportTypedDictNotRequiredAccess = "warning"
-reportRedeclaration = "warning"
-
 # ruff has F401 in its ignore list to allow legitimate `# noqa: F401`
 # imports (alembic env.py registers SQLModel models this way). The list
 # is intentional, but the codebase shouldn't accumulate unflagged stale
