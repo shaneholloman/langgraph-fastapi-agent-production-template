@@ -194,9 +194,11 @@ class DatabaseService:
             List[ChatSession]: List of user's sessions
         """
         with Session(self.engine) as session:
-            statement = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.created_at)
+            # SQLModel column expressions: pyright sees Foo.col as the field type
+            # rather than a ColumnElement. https://github.com/fastapi/sqlmodel/issues/909
+            statement = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.created_at)  # pyright: ignore[reportArgumentType]
             sessions = session.exec(statement).all()
-            return sessions
+            return list(sessions)
 
     async def update_session_name(self, session_id: str, name: str) -> ChatSession:
         """Update a session's name.

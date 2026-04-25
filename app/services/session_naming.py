@@ -40,8 +40,19 @@ def _claim_session(session_id: str, placeholder: str) -> bool:
     concurrent caller receives rowcount == 1.
     """
     with DBSession(database_service.engine) as db:
-        stmt = update(ChatSession).where(ChatSession.id == session_id, ChatSession.name == "").values(name=placeholder)
-        result = db.exec(stmt)
+        # SQLModel column comparisons + Update statements hit known stub gaps:
+        # comparisons are typed as bool, and Session.exec is typed only for
+        # Select. The runtime contract is correct.
+        # https://github.com/fastapi/sqlmodel/issues/909
+        stmt = (
+            update(ChatSession)
+            .where(  # pyright: ignore[reportArgumentType]
+                ChatSession.id == session_id,
+                ChatSession.name == "",
+            )
+            .values(name=placeholder)
+        )
+        result = db.exec(stmt)  # pyright: ignore[reportCallIssue, reportArgumentType]
         db.commit()
         return (result.rowcount or 0) == 1
 
