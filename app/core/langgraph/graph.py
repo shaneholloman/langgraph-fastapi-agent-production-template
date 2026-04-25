@@ -74,11 +74,12 @@ class LangGraphAgent:
             environment=settings.ENVIRONMENT.value,
         )
 
-    async def _get_connection_pool(self) -> AsyncConnectionPool:
+    async def _get_connection_pool(self) -> Optional[AsyncConnectionPool]:
         """Get a PostgreSQL connection pool using environment-specific settings.
 
         Returns:
-            AsyncConnectionPool: A connection pool for PostgreSQL database.
+            AsyncConnectionPool or None when the pool fails to initialise in
+            production (the app keeps running in a degraded mode).
         """
         if self._connection_pool is None:
             try:
@@ -240,6 +241,20 @@ class LangGraphAgent:
 
         return self._graph
 
+    async def _get_graph(self) -> CompiledStateGraph:
+        """Return the compiled graph, creating it on first access.
+
+        Raises:
+            RuntimeError: When ``create_graph()`` swallowed an init failure
+                (production-only path) and returned ``None``. Callers can
+                rely on the return being non-``None``.
+        """
+        if self._graph is None:
+            self._graph = await self.create_graph()
+        if self._graph is None:
+            raise RuntimeError("graph initialization failed")
+        return self._graph
+
     async def get_response(
         self,
         messages: list[Message],
@@ -258,8 +273,7 @@ class LangGraphAgent:
         Returns:
             list[dict]: The response from the LLM.
         """
-        if self._graph is None:
-            self._graph = await self.create_graph()
+        graph = await self._get_graph()
         callbacks = [langfuse_callback_handler] if settings.LANGFUSE_TRACING_ENABLED else []
         config = {
             "configurable": {"thread_id": session_id},
@@ -276,25 +290,25 @@ class LangGraphAgent:
         try:
             # Run state check and memory search concurrently to save 200-500ms
             state, relevant_memory = await asyncio.gather(
-                self._graph.aget_state(config),
+                graph.aget_state(config),
                 memory_service.search(user_id, messages[-1].content),
             )
 
             if state.next:
                 logger.info("resuming_interrupted_graph", session_id=session_id, next_nodes=state.next)
-                response = await self._graph.ainvoke(
+                response = await graph.ainvoke(
                     Command(resume=messages[-1].content),
                     config=config,
                 )
             else:
                 relevant_memory = relevant_memory or "No relevant memory found."
-                response = await self._graph.ainvoke(
+                response = await graph.ainvoke(
                     input={"messages": dump_messages(messages), "long_term_memory": relevant_memory},
                     config=config,
                 )
 
             # Check if the graph was interrupted during this invocation
-            state = await self._graph.aget_state(config)
+            state = await graph.aget_state(config)
             if state.next:
                 interrupt_value = state.tasks[0].interrupts[0].value if state.tasks else "Waiting for input."
                 logger.info("graph_interrupted", session_id=session_id, interrupt_value=str(interrupt_value))
@@ -305,7 +319,7 @@ class LangGraphAgent:
             )
             return self.__process_messages(response["messages"])
         except GraphInterrupt:
-            state = await self._graph.aget_state(config)
+            state = await graph.aget_state(config)
             interrupt_value = state.tasks[0].interrupts[0].value if state.tasks else "Waiting for input."
             logger.info("graph_interrupted", session_id=session_id, interrupt_value=str(interrupt_value))
             return [Message(role="assistant", content=str(interrupt_value))]
@@ -343,13 +357,12 @@ class LangGraphAgent:
                 "debug": settings.DEBUG,
             },
         }
-        if self._graph is None:
-            self._graph = await self.create_graph()
+        graph = await self._get_graph()
 
         try:
             # Run state check and memory search concurrently to save 200-500ms
             state, relevant_memory = await asyncio.gather(
-                self._graph.aget_state(config),
+                graph.aget_state(config),
                 memory_service.search(user_id, messages[-1].content),
             )
 
@@ -360,7 +373,7 @@ class LangGraphAgent:
                 relevant_memory = relevant_memory or "No relevant memory found."
                 graph_input = {"messages": dump_messages(messages), "long_term_memory": relevant_memory}
 
-            async for token, _ in self._graph.astream(
+            async for token, _ in graph.astream(
                 graph_input,
                 config,
                 stream_mode="messages",
@@ -373,7 +386,7 @@ class LangGraphAgent:
                     yield text
 
             # After streaming completes, check for interrupt or update memory
-            state = await self._graph.aget_state(config)
+            state = await graph.aget_state(config)
             if state.next:
                 interrupt_value = state.tasks[0].interrupts[0].value if state.tasks else "Waiting for input."
                 logger.info("graph_interrupted_stream", session_id=session_id, interrupt_value=str(interrupt_value))
@@ -385,7 +398,7 @@ class LangGraphAgent:
                     )
                 )
         except GraphInterrupt:
-            state = await self._graph.aget_state(config)
+            state = await graph.aget_state(config)
             interrupt_value = state.tasks[0].interrupts[0].value if state.tasks else "Waiting for input."
             logger.info("graph_interrupted_stream", session_id=session_id, interrupt_value=str(interrupt_value))
             yield str(interrupt_value)
@@ -402,10 +415,9 @@ class LangGraphAgent:
         Returns:
             list[Message]: The chat history.
         """
-        if self._graph is None:
-            self._graph = await self.create_graph()
+        graph = await self._get_graph()
 
-        state: StateSnapshot = await self._graph.aget_state(config={"configurable": {"thread_id": session_id}})
+        state: StateSnapshot = await graph.aget_state(config={"configurable": {"thread_id": session_id}})
         return self.__process_messages(state.values["messages"]) if state.values else []
 
     def __process_messages(self, messages: list[BaseMessage]) -> list[Message]:
