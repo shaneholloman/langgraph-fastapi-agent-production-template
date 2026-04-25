@@ -79,7 +79,7 @@ def print_success(message: str) -> None:
     print(f"{Fore.GREEN}✓ {message}{Style.RESET_ALL}")
 
 
-def get_user_input(prompt: str, default: Optional[str] = None) -> str:
+def get_user_input(prompt: str, default: Optional[str] = None) -> Optional[str]:
     """Get user input with a colored prompt.
 
     Args:
@@ -87,7 +87,7 @@ def get_user_input(prompt: str, default: Optional[str] = None) -> str:
         default: Default value if user presses enter
 
     Returns:
-        User input or default value
+        User input or default value (which may be None if no default was supplied)
     """
     default_text = f" [{default}]" if default else ""
     user_input = input(f"{Fore.BLUE}{prompt}{default_text}: {Style.RESET_ALL}")
