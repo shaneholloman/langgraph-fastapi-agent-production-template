@@ -186,7 +186,7 @@ This is a production-ready AI agent application built with:
 8. All imports must be at the top of files
 9. All database operations must be async
 10. All endpoints must have proper type hints and Pydantic models
-11. All code must pass `make typecheck` (pyright basic mode)
+11. All code must pass `make typecheck` (pyright standard mode)
 
 ## Common Pitfalls to Avoid
 
