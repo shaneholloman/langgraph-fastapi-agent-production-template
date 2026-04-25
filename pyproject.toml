@@ -135,25 +135,15 @@ exclude = [
 stubPath = "typings"
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
-useLibraryCodeForTypes = true
-
-# Don't fail on missing third-party stubs (mem0ai, slowapi, partial langfuse).
-reportMissingTypeStubs = false
-# Optional imports (redis.asyncio, pyinstrument) are explicitly silenced at
-# the call sites with `# pyright: ignore[reportMissingImports]`, so an
-# unflagged occurrence is now a real error.
-reportMissingImports = "error"
 
 # Demoted to warning — these fire heavily on SQLModel/SQLAlchemy filter
 # expressions (`Session.user_id == X` → bool to pyright) and on
 # `session.exec(...)` returning Sequence vs List. They reflect stub gaps
-# rather than real bugs. Promote back to error in Phase 4 once typings/
-# stubs are added or callsites are explicitly cast.
+# rather than real bugs.
 reportArgumentType = "warning"
 reportReturnType = "warning"
 reportCallIssue = "warning"
 reportOptionalMemberAccess = "warning"
-reportOptionalSubscript = "error"
 reportAssignmentType = "warning"
 reportAttributeAccessIssue = "warning"
 reportTypedDictNotRequiredAccess = "warning"
@@ -164,18 +154,11 @@ reportRedeclaration = "warning"
 # is intentional, but the codebase shouldn't accumulate unflagged stale
 # imports on top of it — pyright catches what ruff is configured to skip.
 reportUnusedImport = "error"
-reportUnusedVariable = "warning"
 
-# Kept as error — these catch real bugs cheaply
+# Tightened from defaults — cheap real-bug catchers
 reportDuplicateImport = "error"
 reportInvalidTypeVarUse = "error"
 reportSelfClsParameterName = "error"
-reportGeneralTypeIssues = "error"
 
 # Style nudges
 reportImplicitOverride = "warning"
-reportPrivateImportUsage = "warning"
-
-# Optional imports (redis, pyinstrument) use the try/except + *_AVAILABLE
-# flag pattern which pyright cannot narrow through. Keep as warning.
-reportPossiblyUnboundVariable = "warning"
