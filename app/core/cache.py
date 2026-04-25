@@ -8,7 +8,9 @@ import hashlib
 import time
 from typing import (
     TYPE_CHECKING,
+    Awaitable,
     Optional,
+    cast,
 )
 
 from app.core.config import settings
@@ -113,7 +115,11 @@ class ValkeyCacheService:
         )
         # Verify connection before publishing the client — if ping() raises,
         # self._client stays None and REDIS_AVAILABLE callers fall back.
-        await client.ping()
+        # redis-py types ping() as Union[Awaitable[bool], bool] to share the
+        # method between sync and async clients (see redis-py issues #3107,
+        # #2399, #3497). The async client always returns Awaitable; cast to
+        # narrow the union for the type checker.
+        await cast(Awaitable[bool], client.ping())
         self._client = client
         logger.info(
             "cache_initialized",
