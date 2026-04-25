@@ -10,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import QueuePool
 from sqlmodel import (
     Session,
+    col,
     create_engine,
     select,
 )
@@ -194,9 +195,9 @@ class DatabaseService:
             List[ChatSession]: List of user's sessions
         """
         with Session(self.engine) as session:
-            # SQLModel column expressions: pyright sees Foo.col as the field type
-            # rather than a ColumnElement. https://github.com/fastapi/sqlmodel/issues/909
-            statement = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.created_at)  # pyright: ignore[reportArgumentType]
+            statement = (
+                select(ChatSession).where(col(ChatSession.user_id) == user_id).order_by(col(ChatSession.created_at))
+            )
             sessions = session.exec(statement).all()
             return list(sessions)
 

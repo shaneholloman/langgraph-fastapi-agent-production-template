@@ -12,8 +12,11 @@ On the first message of a new session this module:
 import asyncio
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from sqlmodel import Session as DBSession
-from sqlmodel import update
+from sqlmodel import (
+    Session as DBSession,
+    col,
+    update,
+)
 
 from app.core.logging import logger
 from app.core.metrics import session_names_generated_total
@@ -40,16 +43,12 @@ def _claim_session(session_id: str, placeholder: str) -> bool:
     concurrent caller receives rowcount == 1.
     """
     with DBSession(database_service.engine) as db:
-        # SQLModel column comparisons + Update statements hit known stub gaps:
-        # comparisons are typed as bool, and Session.exec is typed only for
-        # Select. The runtime contract is correct.
-        # https://github.com/fastapi/sqlmodel/issues/909
         stmt = (
             update(ChatSession)
-            .where(ChatSession.id == session_id, ChatSession.name == "")  # pyright: ignore[reportArgumentType]
+            .where(col(ChatSession.id) == session_id, col(ChatSession.name) == "")
             .values(name=placeholder)
         )
-        result = db.exec(stmt)  # pyright: ignore[reportCallIssue, reportArgumentType]
+        result = db.exec(stmt)
         db.commit()
         return (result.rowcount or 0) == 1
 
