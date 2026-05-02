@@ -27,7 +27,10 @@ from langgraph.graph.state import (
     Command,
     CompiledStateGraph,
 )
-from langgraph.types import StateSnapshot
+from langgraph.types import (
+    RetryPolicy,
+    StateSnapshot,
+)
 from psycopg import (
     AsyncConnection,
     sql,
@@ -218,7 +221,12 @@ class LangGraphAgent:
             try:
                 graph_builder = StateGraph(GraphState)
                 graph_builder.add_node("chat", self._chat, destinations=("tool_call", END))
-                graph_builder.add_node("tool_call", self._tool_call, destinations=("chat",))
+                graph_builder.add_node(
+                    "tool_call",
+                    self._tool_call,
+                    destinations=("chat",),
+                    retry_policy=RetryPolicy(max_attempts=3),
+                )
                 graph_builder.set_entry_point("chat")
                 graph_builder.set_finish_point("chat")
 
