@@ -13,6 +13,7 @@ from typing import (
     overload,
 )
 
+from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages import BaseMessage
 from openai import (
     APIError,
@@ -84,7 +85,7 @@ class LLMService:
     @overload
     async def call(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         model_name: Optional[str] = ...,
         response_format: None = ...,
         **model_kwargs: Any,
@@ -93,15 +94,16 @@ class LLMService:
     @overload
     async def call(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         model_name: Optional[str] = ...,
-        response_format: Type[T] = ...,
+        *,
+        response_format: Type[T],
         **model_kwargs: Any,
     ) -> T: ...
 
     async def call(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         model_name: Optional[str] = None,
         response_format: Optional[Type[BaseModel]] = None,
         **model_kwargs: Any,
@@ -173,7 +175,7 @@ class LLMService:
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
-    async def _invoke_with_retry(self, llm: Any, messages: List[BaseMessage]) -> Any:
+    async def _invoke_with_retry(self, llm: Any, messages: LanguageModelInput) -> Any:
         """Invoke an LLM runnable with automatic per-model retry logic.
 
         Args:
@@ -188,7 +190,7 @@ class LLMService:
         """
         try:
             response = await llm.ainvoke(messages)
-            logger.debug("llm_call_successful", message_count=len(messages))
+            logger.debug("llm_call_successful")
             return response
         except (RateLimitError, APITimeoutError, APIError) as e:
             logger.warning(
@@ -236,7 +238,7 @@ class LLMService:
 
     async def _call_with_fallback(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         model_name: Optional[str],
         response_format: Optional[Type[BaseModel]],
         model_kwargs: dict,
@@ -251,6 +253,17 @@ class LLMService:
             ``get_target`` returns ``self._llm`` (tool-bound).
             ``advance`` calls ``_switch_to_next_model`` so bindings persist.
         """
+
+        def _override_target(idx: int) -> Any:
+            base = LLMRegistry.get(LLMRegistry.LLMS[idx]["name"], **model_kwargs)
+            return base.with_structured_output(response_format) if response_format else base
+
+        def _default_target(_: int) -> Any:
+            return self._llm
+
+        def _default_advance(_: int) -> Optional[int]:
+            return self._current_model_index if self._switch_to_next_model() else None
+
         if model_name or response_format or model_kwargs:
             all_names = LLMRegistry.get_all_names()
             if model_name and model_name not in all_names:
@@ -261,27 +274,22 @@ class LLMService:
 
             start = all_names.index(model_name) if model_name else self._current_model_index
             total = len(LLMRegistry.LLMS)
+            get_target: Callable[[int], Any] = _override_target
 
-            def get_target(idx: int) -> Any:
-                base = LLMRegistry.get(LLMRegistry.LLMS[idx]["name"], **model_kwargs)
-                return base.with_structured_output(response_format) if response_format else base
-
-            def advance(idx: int) -> Optional[int]:
+            def _override_advance(idx: int) -> Optional[int]:
                 return (idx + 1) % total
+
+            advance: Callable[[int], Optional[int]] = _override_advance
         else:
             start = self._current_model_index
-
-            def get_target(_: int) -> Any:
-                return self._llm
-
-            def advance(_: int) -> Optional[int]:
-                return self._current_model_index if self._switch_to_next_model() else None
+            get_target = _default_target
+            advance = _default_advance
 
         return await self._fallback_loop(messages, start, get_target, advance)
 
     async def _fallback_loop(
         self,
-        messages: List[BaseMessage],
+        messages: LanguageModelInput,
         start: int,
         get_target: Callable[[int], Any],
         advance: Callable[[int], Optional[int]],

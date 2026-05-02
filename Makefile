@@ -81,10 +81,16 @@ eval-no-report:
 # Code quality
 # ---------------------------------------------------------------------------
 lint:
-	ruff check .
+	uv run ruff check .
 
 format:
-	ruff format .
+	uv run ruff format .
+
+typecheck:
+	uv run pyright
+
+check: lint typecheck
+	@echo "All checks passed"
 
 pre-commit:
 	uv run pre-commit run --all-files
@@ -160,6 +166,8 @@ help:
 	@echo "Code quality:"
 	@echo "  lint                 Ruff lint check"
 	@echo "  format               Ruff format"
+	@echo "  typecheck            Pyright static type check"
+	@echo "  check                Run lint + typecheck"
 	@echo "  pre-commit           Run all pre-commit hooks"
 	@echo "  pre-commit-update    Update pre-commit hook versions"
 	@echo ""
@@ -180,7 +188,7 @@ help:
 .PHONY: install dev staging prod _serve \
         migrate migration migrate-downgrade migrate-history \
         eval eval-quick eval-no-report \
-        lint format pre-commit pre-commit-update \
+        lint format typecheck check pre-commit pre-commit-update \
         docker-build docker-up docker-down docker-logs \
         stack-up stack-down stack-logs \
         clean help

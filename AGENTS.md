@@ -9,6 +9,8 @@ make install          # Install deps (uv sync)
 make dev              # Dev server with hot reload (port 8000)
 make lint             # ruff check .
 make format           # ruff format .
+make typecheck        # uv run pyright (static type check)
+make check            # lint + typecheck
 make eval             # Run LLM evals (interactive)
 make eval-quick       # Run LLM evals (default settings)
 make docker-run       # Docker: API + DB (development)
@@ -184,6 +186,7 @@ This is a production-ready AI agent application built with:
 8. All imports must be at the top of files
 9. All database operations must be async
 10. All endpoints must have proper type hints and Pydantic models
+11. All code must pass `make typecheck` (pyright standard mode)
 
 ## Common Pitfalls to Avoid
 

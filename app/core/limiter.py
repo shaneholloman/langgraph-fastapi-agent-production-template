@@ -24,6 +24,6 @@ if settings.VALKEY_HOST:
 # Initialize rate limiter (uses in-memory storage if no Valkey)
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=settings.RATE_LIMIT_DEFAULT,
+    default_limits=settings.RATE_LIMIT_DEFAULT,  # pyright: ignore[reportArgumentType]
     storage_uri=_storage_uri,
 )
