@@ -2,7 +2,12 @@
 
 ## Overview
 
-The LLM service (`app/services/llm.py`) handles all language model calls with automatic retries, circular model fallback, and a total timeout budget. Your agent code calls `llm_service.call(messages)` — the service handles everything else.
+The LLM service (`app/services/llm/`) handles all language model calls with automatic retries, circular model fallback, and a total timeout budget. Your agent code calls `llm_service.call(messages)` — the service handles everything else.
+
+The package is split into two modules:
+
+- `app/services/llm/registry.py` — `LLMRegistry`: defines available models
+- `app/services/llm/service.py` — `LLMService`: call logic, retries, fallback, structured output
 
 ## Model registry
 
@@ -17,7 +22,7 @@ Models are defined in `LLMRegistry.LLMS` in order of preference:
 
 Set `DEFAULT_LLM_MODEL` in your `.env` to choose the starting model.
 
-To add or change models, edit `LLMRegistry.LLMS` in `app/services/llm.py`.
+To add or change models, edit `LLMRegistry.LLMS` in `app/services/llm/registry.py`.
 
 ## Retry and fallback behaviour
 
@@ -65,10 +70,27 @@ llm_service.bind_tools(tools)
 
 When a model is switched during fallback, the tools are re-bound to the new model automatically.
 
+## Structured output
+
+Pass a Pydantic model as `response_format` to get a validated instance back instead of a raw `BaseMessage`:
+
+```python
+from app.schemas.my_schema import MySchema
+
+result: MySchema = await llm_service.call(
+    messages,
+    model_name="gpt-5.4-nano",   # optional — uses current default if omitted
+    response_format=MySchema,
+    temperature=0.2,
+)
+```
+
+The service chains `.with_structured_output(schema)` on the resolved model and re-wraps it on every fallback attempt, so retries and model switching work transparently.
+
 ## Adding a new model
 
 ```python
-# app/services/llm.py — LLMRegistry.LLMS
+# app/services/llm/registry.py — LLMRegistry.LLMS
 {
     "name": "gpt-5.4",
     "llm": ChatOpenAI(
